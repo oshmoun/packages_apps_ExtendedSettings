@@ -24,6 +24,7 @@ import android.view.SurfaceControl;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.math.BigInteger;
@@ -53,6 +54,7 @@ public class ExtendedSettingsFragment extends PreferenceFragment {
     protected static final String SYSFS_FB_MODES = "/sys/devices/virtual/graphics/fb0/modes";
     protected static final String SYSFS_FB_MODESET = "/sys/devices/virtual/graphics/fb0/mode";
     protected static final String SYSFS_FB_PCC_PROFILE = "/sys/devices/mdss_dsi_panel/pcc_profile";
+    protected static final String SYSFS_DRM_PCC_PROFILE = "/sys/devices/dsi_panel_driver/pcc_profile";
 
     protected static final String PREF_8MP_23MP_ENABLED = "persist.camera.8mp.config";
     protected static final String PREF_DISPCAL_SETTING = "persist.dispcal.setting";
@@ -472,8 +474,9 @@ public class ExtendedSettingsFragment extends PreferenceFragment {
     protected void initializeDispCalListPreference() {
         String curDispCal;
         int i;
+        File pccProfile = getPccProfileFile();
 
-        try (FileReader sysfsFile = new FileReader(SYSFS_FB_PCC_PROFILE);
+        try (FileReader sysfsFile = new FileReader(pccProfile);
              BufferedReader fileReader = new BufferedReader(sysfsFile)) {
             ListPreference resPref = (ListPreference) findPreference(mDispCalSwitchPref);
             curDispCal = fileReader.readLine();
@@ -504,7 +507,9 @@ public class ExtendedSettingsFragment extends PreferenceFragment {
 
     /* WARNING: Be careful! This function is called at PRE_BOOT_COMPLETED stage! */
     protected static boolean performDisplayCalibration(int calId) {
-        try (FileWriter sysfsFile = new FileWriter(SYSFS_FB_PCC_PROFILE);
+        File pccProfile = getPccProfileFile();
+
+        try (FileWriter sysfsFile = new FileWriter(pccProfile);
              BufferedWriter writer = new BufferedWriter(sysfsFile)) {
             String calIdStr = Integer.toString(calId);
 
@@ -614,5 +619,13 @@ public class ExtendedSettingsFragment extends PreferenceFragment {
             default:
                 return super.onOptionsItemSelected(item);
         }
+    }
+
+    private static File getPccProfileFile() {
+        File pccProfile = new File(SYSFS_DRM_PCC_PROFILE);
+	if (!pccProfile.exists()) {
+            pccProfile = new File(SYSFS_FB_PCC_PROFILE);
+        }
+        return pccProfile;
     }
 }
