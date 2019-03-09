@@ -1,4 +1,4 @@
-<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+<android.support.v7.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
 
     <SwitchPreference
         android:defaultValue="true"
@@ -30,4 +30,26 @@
         android:title="@string/pref_title_dispcal_switch"
         android:summary="Current calibration:"/>
 
-</PreferenceScreen>
+    <SwitchPreference
+        android:defaultValue="false"
+        android:key="led_dim_enabled"
+        android:summary="@string/pref_led_dim_enabled_summary"
+        android:title="@string/pref_led_dim_enabled" />
+
+    <android.support.v7.preference.SeekBarPreference
+        android:key="led_dim_threshold"
+        android:title="@string/pref_led_dim_threshold"
+        android:summary="@string/pref_led_dim_threshold_summary"
+        android:max="10"
+        android:defaultValue="6"
+        android:enabled="false" />
+
+    <android.support.v7.preference.SeekBarPreference
+        android:key="led_dim_scaling"
+        android:title="@string/pref_led_dim_scaling"
+        android:summary="@string/pref_led_dim_scaling_summary"
+        android:max="10"
+        android:defaultValue="5"
+        android:enabled="false" />
+
+</android.support.v7.preference.PreferenceScreen>

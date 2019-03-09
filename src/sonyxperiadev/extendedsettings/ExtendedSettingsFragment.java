@@ -4,6 +4,7 @@ import android.app.ActionBar;
 import android.app.DialogFragment;
 import android.app.FragmentManager;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.net.wifi.WifiManager;
@@ -47,7 +48,7 @@ import java.util.regex.Pattern;
  * href="http://developer.android.com/guide/topics/ui/settings.html">Settings
  * API Guide</a> for more information on developing a Settings UI.
  */
-public class ExtendedSettingsFragment extends PreferenceFragment {
+public class ExtendedSettingsFragment extends PreferenceFragment implements OnPreferenceChangeListener {
 
     private static final String TAG = "ExtendedSettings";
 
@@ -66,6 +67,9 @@ public class ExtendedSettingsFragment extends PreferenceFragment {
     protected static final String mADBOverNetworkSwitchPref = "adbon_switch";
     protected static final String mDynamicResolutionSwitchPref = "dynres_list_switch";
     protected static final String mDispCalSwitchPref = "dispcal_list_switch";
+    protected static final String LED_DIM_ENABLED = "led_dim_enabled";
+    protected static final String LED_DIM_THRESHOLD = "led_dim_threshold";
+    protected static final String LED_DIM_SCALING = "led_dim_scaling";
 
     private static final int BUILT_IN_DISPLAY_ID_MAIN = 0;
 
@@ -184,43 +188,58 @@ public class ExtendedSettingsFragment extends PreferenceFragment {
      * A preference value change listener that updates the preference's summary
      * to reflect its new value.
      */
-    private static Preference.OnPreferenceChangeListener mPreferenceListener = new Preference.OnPreferenceChangeListener() {
-        @Override
-        public boolean onPreferenceChange(Preference preference, Object value) {
-            switch (preference.getKey()) {
-                case m8MPSwitchPref:
-                    SystemProperties.set(PREF_8MP_23MP_ENABLED, String.valueOf((Boolean) value));
-                    confirmRebootChange();
-                    break;
-                case mCameraAltAct:
-                    SystemProperties.set(PREF_CAMERA_ALT_ACT, String.valueOf((Boolean) value));
-                    confirmRebootChange();
-                    break;
-                case mADBOverNetworkSwitchPref:
-                    if ((Boolean) value) {
-                        confirmEnablingADBON();
-                    } else {
-                        SystemProperties.set(PREF_ADB_NETWORK_COM, "-1");
-                        updateADBSummary(false);
-                    }
-                    break;
-                case mDynamicResolutionSwitchPref:
-                    confirmPerformDRS(Integer.parseInt((String) value));
-                    break;
-                case mDispCalSwitchPref:
-                    int newDispCal = Integer.parseInt((String) value);
-                    boolean performed = performDisplayCalibration(newDispCal);
-                    if (performed) {
-                        SystemProperties.set(PREF_DISPCAL_SETTING, (String) value);
-                        updateDispCalPreference(newDispCal);
-                    }
-                    break;
-                default:
-                    break;
-            }
-            return true;
+    @Override
+    public boolean onPreferenceChange(Preference preference, Object value) {
+        switch (preference.getKey()) {
+            case m8MPSwitchPref:
+                SystemProperties.set(PREF_8MP_23MP_ENABLED, String.valueOf((Boolean) value));
+                confirmRebootChange();
+                break;
+            case mCameraAltAct:
+                SystemProperties.set(PREF_CAMERA_ALT_ACT, String.valueOf((Boolean) value));
+            confirmRebootChange();
+            break;
+            case mADBOverNetworkSwitchPref:
+                if ((Boolean) value) {
+                    confirmEnablingADBON();
+                } else {
+                    SystemProperties.set(PREF_ADB_NETWORK_COM, "-1");
+                    updateADBSummary(false);
+                }
+                break;
+            case mDynamicResolutionSwitchPref:
+                confirmPerformDRS(Integer.parseInt((String) value));
+                break;
+            case mDispCalSwitchPref:
+                int newDispCal = Integer.parseInt((String) value);
+                boolean performed = performDisplayCalibration(newDispCal);
+                if (performed) {
+                    SystemProperties.set(PREF_DISPCAL_SETTING, (String) value);
+                    updateDispCalPreference(newDispCal);
+                }
+                break;
+            case LED_DIM_ENABLED:
+                Intent intent = new Intent(getActivity(), LedDimmingService.class);
+                if ((Boolean) value) {
+                    getActivity().startService(intent);
+                } else {
+                    getActivity().stopService(intent);
+                }
+                break;
+            case LED_DIM_THRESHOLD:
+                Integer newThreshold = (Integer) value;
+                LedDimmingService.updateThreshold(newThreshold);
+                break;
+            case LED_DIM_SCALING:
+                Integer newDimScaling = (Integer) value;
+                LedDimmingService.updateDimScaling(newDimScaling);
+                break;
+            default:
+                break;
         }
-    };
+    return true;
+    }
+
 
     @Override
     public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
@@ -228,9 +247,9 @@ public class ExtendedSettingsFragment extends PreferenceFragment {
         mFragment = this;
         addPreferencesFromResource(R.xml.pref_general);
 
-        findPreference(m8MPSwitchPref).setOnPreferenceChangeListener(mPreferenceListener);
-        findPreference(mCameraAltAct).setOnPreferenceChangeListener(mPreferenceListener);
-        findPreference(mADBOverNetworkSwitchPref).setOnPreferenceChangeListener(mPreferenceListener);
+        findPreference(m8MPSwitchPref).setOnPreferenceChangeListener(this);
+        findPreference(mCameraAltAct).setOnPreferenceChangeListener(this);
+        findPreference(mADBOverNetworkSwitchPref).setOnPreferenceChangeListener(this);
         mFragmentManager = getFragmentManager();
         mPrefEditor = PreferenceManager.getDefaultSharedPreferences(getContext()).edit();
 
@@ -240,7 +259,7 @@ public class ExtendedSettingsFragment extends PreferenceFragment {
         ListPreference drsSwitchPref = (ListPreference) findPreference(mDynamicResolutionSwitchPref);
         int ret = initializeDRSListPreference(drsSwitchPref);
         if (ret == 0) {
-            drsSwitchPref.setOnPreferenceChangeListener(mPreferenceListener);
+            drsSwitchPref.setOnPreferenceChangeListener(this);
         } else {
             getPreferenceScreen().removePreference(drsSwitchPref);
         }
@@ -248,7 +267,7 @@ public class ExtendedSettingsFragment extends PreferenceFragment {
         ListPreference dispCalSwitchPref = (ListPreference) findPreference(mDispCalSwitchPref);
         ret = initializeDispCalListPreference(dispCalSwitchPref);
         if (ret == 0) {
-            dispCalSwitchPref.setOnPreferenceChangeListener(mPreferenceListener);
+            dispCalSwitchPref.setOnPreferenceChangeListener(this);
         } else {
             getPreferenceScreen().removePreference(dispCalSwitchPref);
         }
@@ -262,6 +281,8 @@ public class ExtendedSettingsFragment extends PreferenceFragment {
             updateADBSummary(adbNB);
         }
         mPrefEditor.apply();
+
+        findPreference(LED_DIM_ENABLED).setOnPreferenceChangeListener(this);
     }
 
     /**
